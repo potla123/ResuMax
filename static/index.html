@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResuMax | AI Resume & Cover Letter Optimizer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- CSS Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-wand-magic-sparkles logo-icon"></i>
+                <h1>Resu<span>Max</span></h1>
+                <span class="badge">Enterprise Pipeline</span>
+            </div>
+            <button id="toggle-settings-btn" class="icon-btn" title="API Key Settings">
+                <i class="fa-solid fa-gear"></i> Settings
+            </button>
+        </header>
+
+        <!-- API Settings Panel (collapsible) -->
+        <section id="settings-panel" class="settings-panel hidden">
+            <div class="panel-header">
+                <h3><i class="fa-solid fa-key"></i> API Configuration</h3>
+                <p>Provide your keys. They are stored locally in your browser and never saved on our server.</p>
+            </div>
+            <div class="settings-grid">
+                <div class="input-group">
+                    <label for="openai-key-input">OpenAI API Key</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="openai-key-input" placeholder="sk-proj-...">
+                        <button type="button" class="eye-toggle" data-target="openai-key-input">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="anthropic-key-input">Anthropic API Key</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="anthropic-key-input" placeholder="sk-ant-...">
+                        <button type="button" class="eye-toggle" data-target="anthropic-key-input">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-footer">
+                <span id="settings-status" class="status-msg"></span>
+                <button id="save-settings-btn" class="primary-btn btn-sm">Save Configuration</button>
+            </div>
+        </section>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Inputs Column -->
+            <section class="input-section card">
+                <div class="section-title">
+                    <h2><i class="fa-solid fa-file-import"></i> Input Profiles</h2>
+                    <p>Provide your existing resume and details of the target job.</p>
+                </div>
+
+                <!-- Resume Upload Zone -->
+                <div class="upload-container">
+                    <label>Existing Resume</label>
+                    <div id="drop-zone" class="drop-zone">
+                        <i class="fa-solid fa-file-pdf upload-icon"></i>
+                        <p class="drop-text">Drag & drop your resume here or <span>browse files</span></p>
+                        <p class="file-limits">Supports PDF, DOCX, TXT (Max 5MB)</p>
+                        <input type="file" id="file-input" accept=".pdf,.docx,.txt" class="hidden-input">
+                    </div>
+                    <div id="file-info" class="file-info hidden">
+                        <i class="fa-solid fa-circle-check success-icon"></i>
+                        <span id="file-name" class="file-name">filename.pdf</span>
+                        <button id="remove-file-btn" class="remove-btn" title="Remove file"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+
+                <!-- Job Description Input -->
+                <div class="jd-container">
+                    <div class="tabs-header-jd">
+                        <label>Job Description</label>
+                        <div class="jd-mode-tabs">
+                            <button id="tab-jd-text" class="jd-tab active">Paste Text</button>
+                            <button id="tab-jd-url" class="jd-tab">Job Link</button>
+                        </div>
+                    </div>
+
+                    <!-- Paste Text Pane -->
+                    <div id="jd-text-pane" class="jd-pane">
+                        <textarea id="jd-text-input" placeholder="Paste the full job description text here, including requirements, responsibilities, and about the company..."></textarea>
+                    </div>
+
+                    <!-- URL Scraper Pane -->
+                    <div id="jd-url-pane" class="jd-pane hidden">
+                        <div class="url-input-group">
+                            <input type="url" id="jd-url-input" placeholder="https://careers.company.com/jobs/123...">
+                            <button id="scrape-btn" class="secondary-btn"><i class="fa-solid fa-globe"></i> Scrape</button>
+                        </div>
+                        <p class="help-text">We'll fetch and clean the text of the job description automatically.</p>
+                        <div id="scraped-preview-container" class="scraped-preview-container hidden">
+                            <label>Scraped Output Preview:</label>
+                            <div id="scraped-preview" class="scraped-preview"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Optimize Trigger -->
+                <button id="optimize-btn" class="optimize-btn">
+                    <i class="fa-solid fa-rocket"></i> Launch Optimization Pipeline
+                </button>
+            </section>
+
+            <!-- Results/Progress Column -->
+            <section class="results-section">
+                <!-- Loader and Progress Pipeline -->
+                <div id="pipeline-status" class="pipeline-status card hidden">
+                    <div class="section-title">
+                        <h2><i class="fa-solid fa-spinner fa-spin status-spinner"></i> Pipeline In Progress</h2>
+                        <p>Running multi-model agentic optimization flow. This may take 30-60 seconds.</p>
+                    </div>
+
+                    <!-- Steps Timeline -->
+                    <div class="timeline">
+                        <div class="timeline-item" id="step-parsing">
+                            <div class="step-num"><i class="fa-solid fa-check"></i>1</div>
+                            <div class="step-content">
+                                <h4>Extracting Content</h4>
+                                <p>Parsing resume text & cleaning job description.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item" id="step-tailor">
+                            <div class="step-num"><i class="fa-solid fa-check"></i>2</div>
+                            <div class="step-content">
+                                <h4>GPT Custom Tailoring</h4>
+                                <p>Re-writing resume points and crafting tailored cover letter.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item" id="step-ats">
+                            <div class="step-num"><i class="fa-solid fa-check"></i>3</div>
+                            <div class="step-content">
+                                <h4>ATS Verification & Loop (Min 85%)</h4>
+                                <p>Analyzing keywords. Refining iteratively if score is below 85%.</p>
+                                <div class="ats-attempt-badge-container" id="ats-badge-container"></div>
+                            </div>
+                        </div>
+                        <div class="timeline-item" id="step-claude">
+                            <div class="step-num"><i class="fa-solid fa-check"></i>4</div>
+                            <div class="step-content">
+                                <h4>Claude Quality Audit</h4>
+                                <p>Reviewing output with Anthropic Claude for recruiter-grade enhancements.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item" id="step-humanizer">
+                            <div class="step-num"><i class="fa-solid fa-check"></i>5</div>
+                            <div class="step-content">
+                                <h4>GPT Humanizer</h4>
+                                <p>Polishing content to remove robotic AI patterns and verify style.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Idle/Placeholder View -->
+                <div id="output-placeholder" class="output-placeholder card">
+                    <div class="placeholder-content">
+                        <i class="fa-solid fa-circle-nodes placeholder-icon"></i>
+                        <h3>Awaiting Input</h3>
+                        <p>Fill out the profile forms and click "Launch Optimization Pipeline" to generate your hyper-tailored resume and cover letter.</p>
+                    </div>
+                </div>
+
+                <!-- Pipeline Results Tabs and Output Container -->
+                <div id="output-container" class="output-container card hidden">
+                    <!-- Main Navigation Tabs -->
+                    <div class="tabs-nav">
+                        <button class="output-tab active" data-tab="tab-final-resume">
+                            <i class="fa-solid fa-user-tie"></i> Optimized Resume
+                        </button>
+                        <button class="output-tab" data-tab="tab-cover-letter">
+                            <i class="fa-solid fa-envelope-open-text"></i> Cover Letter
+                        </button>
+                        <button class="output-tab" data-tab="tab-ats-report">
+                            <i class="fa-solid fa-chart-line"></i> ATS Analysis
+                        </button>
+                        <button class="output-tab" data-tab="tab-claude-audit">
+                            <i class="fa-solid fa-magnifying-glass-chart"></i> Claude Audit
+                        </button>
+                        <button class="output-tab" data-tab="tab-initial-resume">
+                            <i class="fa-solid fa-file-lines"></i> Initial Draft
+                        </button>
+                    </div>
+
+                    <!-- Output Card Body -->
+                    <div class="output-body">
+                        <!-- Top Action Row -->
+                        <div class="output-actions">
+                            <span id="active-tab-title" class="tab-title">Optimized Resume</span>
+                            <div class="action-buttons">
+                                <button id="copy-btn" class="action-btn" title="Copy to clipboard">
+                                    <i class="fa-solid fa-copy"></i> Copy
+                                </button>
+                                <button id="download-docx-btn" class="action-btn" title="Download as Word (.docx)">
+                                    <i class="fa-solid fa-file-word"></i> Word
+                                </button>
+                                <button id="download-pdf-btn" class="action-btn" title="Download as PDF (.pdf)">
+                                    <i class="fa-solid fa-file-pdf"></i> PDF
+                                </button>
+                                <button id="download-txt-btn" class="action-btn" title="Download as plain text (.txt)">
+                                    <i class="fa-solid fa-file-lines"></i> Text
+                                </button>
+                                <button id="download-md-btn" class="action-btn" title="Download Markdown (.md)">
+                                    <i class="fa-solid fa-download"></i> Markdown
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tab Content Panes -->
+                        <div class="tab-contents">
+                            <!-- Optimized Resume Pane -->
+                            <div id="tab-final-resume" class="tab-pane active-pane printable-area">
+                                <div id="final-resume-markdown" class="markdown-preview"></div>
+                            </div>
+
+                            <!-- Cover Letter Pane -->
+                            <div id="tab-cover-letter" class="tab-pane printable-area">
+                                <div id="cover-letter-markdown" class="markdown-preview"></div>
+                            </div>
+
+                            <!-- ATS Score / Analysis Pane -->
+                            <div id="tab-ats-report" class="tab-pane">
+                                <div class="ats-report-grid">
+                                    <div class="ats-score-card">
+                                        <span class="ats-score-title">Final ATS Score</span>
+                                        <div class="score-circle">
+                                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                <path id="score-stroke" class="circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                <text x="18" y="20.35" class="percentage" id="score-number">0%</text>
+                                            </svg>
+                                        </div>
+                                        <span id="score-badge" class="score-badge">Needs Work</span>
+                                    </div>
+                                    <div class="ats-details">
+                                        <div class="detail-block">
+                                            <h4><i class="fa-solid fa-tag missing-icon"></i> Missing Key Keywords</h4>
+                                            <ul id="ats-keywords-list" class="keywords-list"></ul>
+                                        </div>
+                                        <div class="detail-block">
+                                            <h4><i class="fa-solid fa-triangle-exclamation warning-icon"></i> Formatting Warnings</h4>
+                                            <ul id="ats-formatting-list" class="feedback-list"></ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr class="divider">
+                                <div class="ats-suggestions">
+                                    <h4><i class="fa-solid fa-lightbulb suggestion-icon"></i> Structural Optimization Suggestions</h4>
+                                    <ul id="ats-suggestions-list" class="feedback-list"></ul>
+                                </div>
+                            </div>
+
+                            <!-- Claude Audit Log Pane -->
+                            <div id="tab-claude-audit" class="tab-pane">
+                                <div class="audit-header">
+                                    <div class="audit-status-badge" id="audit-status-badge">
+                                        <i class="fa-solid fa-circle-check"></i> Audit Completed
+                                    </div>
+                                    <p id="audit-summary-text">Claude evaluated the resume for industry standard verbs and phrasing.</p>
+                                </div>
+                                <div class="feedback-box">
+                                    <h4>Claude Feedback Log:</h4>
+                                    <div id="claude-feedback-content" class="feedback-content-text"></div>
+                                </div>
+                            </div>
+
+                            <!-- Initial Draft Pane -->
+                            <div id="tab-initial-resume" class="tab-pane printable-area">
+                                <div class="draft-notice">
+                                    <i class="fa-solid fa-info-circle"></i>
+                                    This is the initial draft tailored by GPT, before the ATS refinements and Claude's review.
+                                </div>
+                                <div id="initial-resume-markdown" class="markdown-preview"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- JavaScript Application File -->
+    <script src="app.js"></script>
+</body>
+</html>
