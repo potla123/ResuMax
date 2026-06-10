@@ -170,71 +170,136 @@ def _add_runs_with_inline_md(paragraph, text: str):
         else:
             paragraph.add_run(tok)
 
+# ------------------------------------------------------------
+# Template styling, modeled on "Navya P_Capgemini_DA.docx":
+#   - Century Gothic throughout; 10pt justified body
+#   - Tight ~0.3" margins
+#   - Name 20pt bold, with a trailing "(Title)" rendered at 14pt
+#   - Section headings: CENTERED, bold + italic + underline, 12pt, UPPERCASE
+#   - Job-title lines bold 11pt; bullets use a "•" glyph at 10pt
+#   - Key skills/keywords stay bold inline (from **markdown**)
+# ------------------------------------------------------------
+_TEMPLATE_FONT = "Century Gothic"
+_BODY_PT = 10
+_NAME_PT = 20
+_NAME_TITLE_PT = 14
+_HEADING_PT = 12
+_JOBTITLE_PT = 11
+
+def _apply_run_font(run, size_pt=None, bold=None, italic=None, underline=None):
+    """Force the template font on a run (and optional size/emphasis)."""
+    run.font.name = _TEMPLATE_FONT
+    rpr = run._element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:ascii"), _TEMPLATE_FONT)
+    rfonts.set(qn("w:hAnsi"), _TEMPLATE_FONT)
+    rfonts.set(qn("w:cs"), _TEMPLATE_FONT)
+    if size_pt is not None:
+        run.font.size = Pt(size_pt)
+    if bold is not None:
+        run.bold = bold
+    if italic is not None:
+        run.italic = italic
+    if underline is not None:
+        run.underline = underline
+
+def _add_template_runs(paragraph, text: str, size_pt=_BODY_PT):
+    """Add text honoring **bold**/*italic* inline, all in the template font."""
+    tokens = re.split(r"(\*\*.+?\*\*|\*.+?\*|`.+?`)", text)
+    for tok in tokens:
+        if not tok:
+            continue
+        if tok.startswith("**") and tok.endswith("**"):
+            run = paragraph.add_run(tok[2:-2])
+            _apply_run_font(run, size_pt=size_pt, bold=True)
+        elif tok.startswith("*") and tok.endswith("*"):
+            run = paragraph.add_run(tok[1:-1])
+            _apply_run_font(run, size_pt=size_pt, italic=True)
+        elif tok.startswith("`") and tok.endswith("`"):
+            run = paragraph.add_run(tok[1:-1])
+            _apply_run_font(run, size_pt=size_pt)
+        else:
+            run = paragraph.add_run(tok)
+            _apply_run_font(run, size_pt=size_pt)
+
 def markdown_to_docx_bytes(md_text: str) -> bytes:
-    """Convert markdown resume/cover letter to a clean, anonymous .docx bytes."""
+    """Convert markdown resume/cover letter to a clean .docx styled like the template."""
     md_text = _clean_ai_artifacts(md_text)
     doc = Document()
 
-    # Page margins
+    # Tight page margins (~0.3" as in the template)
     for section in doc.sections:
-        section.left_margin = Inches(0.7)
-        section.right_margin = Inches(0.7)
-        section.top_margin = Inches(0.6)
-        section.bottom_margin = Inches(0.6)
+        section.left_margin = Inches(0.3)
+        section.right_margin = Inches(0.3)
+        section.top_margin = Inches(0.3)
+        section.bottom_margin = Inches(0.3)
 
-    # Base style
+    # Base style: Century Gothic, 10pt
     style = doc.styles["Normal"]
-    style.font.name = "Calibri"
-    style.font.size = Pt(11)
+    style.font.name = _TEMPLATE_FONT
+    style.font.size = Pt(_BODY_PT)
     rpr = style.element.get_or_add_rPr()
     rfonts = rpr.find(qn("w:rFonts"))
     if rfonts is None:
         rfonts = OxmlElement("w:rFonts")
         rpr.append(rfonts)
-    rfonts.set(qn("w:ascii"), "Calibri")
-    rfonts.set(qn("w:hAnsi"), "Calibri")
+    rfonts.set(qn("w:ascii"), _TEMPLATE_FONT)
+    rfonts.set(qn("w:hAnsi"), _TEMPLATE_FONT)
+    rfonts.set(qn("w:cs"), _TEMPLATE_FONT)
 
     first_h1_used = False
+    seen_first_h2 = False
     for kind, content in _parse_markdown_blocks(md_text):
-        content = _strip_inline_md(content) if kind != "para" and kind != "bullet" else content
+        content = _strip_inline_md(content) if kind not in ("para", "bullet") else content
         if kind == "h1":
             p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if not first_h1_used else WD_ALIGN_PARAGRAPH.LEFT
-            run = p.add_run(content)
-            run.bold = True
-            run.font.size = Pt(20 if not first_h1_used else 14)
-            run.font.color.rgb = RGBColor(0x11, 0x11, 0x11)
-            p.paragraph_format.space_after = Pt(4)
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(2)
+            if not first_h1_used:
+                # Name line; split a trailing "(Title)" to a smaller size
+                m = re.match(r"^(.*?)\s*(\([^)]*\))\s*$", content)
+                if m:
+                    name_run = p.add_run(m.group(1) + " ")
+                    _apply_run_font(name_run, size_pt=_NAME_PT, bold=True)
+                    title_run = p.add_run(m.group(2))
+                    _apply_run_font(title_run, size_pt=_NAME_TITLE_PT, bold=True)
+                else:
+                    run = p.add_run(content)
+                    _apply_run_font(run, size_pt=_NAME_PT, bold=True)
+            else:
+                run = p.add_run(content)
+                _apply_run_font(run, size_pt=_JOBTITLE_PT, bold=True)
             first_h1_used = True
         elif kind == "h2":
+            seen_first_h2 = True
             p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p.add_run(content.upper())
-            run.bold = True
-            run.font.size = Pt(12)
-            run.font.color.rgb = RGBColor(0x22, 0x22, 0x22)
-            p.paragraph_format.space_before = Pt(10)
+            _apply_run_font(run, size_pt=_HEADING_PT, bold=True, italic=True, underline=True)
+            p.paragraph_format.space_before = Pt(6)
             p.paragraph_format.space_after = Pt(2)
-            # Bottom border (underline-style heading)
-            pPr = p._p.get_or_add_pPr()
-            pBdr = OxmlElement("w:pBdr")
-            bottom = OxmlElement("w:bottom")
-            bottom.set(qn("w:val"), "single")
-            bottom.set(qn("w:sz"), "6")
-            bottom.set(qn("w:space"), "1")
-            bottom.set(qn("w:color"), "808080")
-            pBdr.append(bottom)
-            pPr.append(pBdr)
         elif kind == "h3":
+            # Job-title / sub-entry line: bold 11pt
             p = doc.add_paragraph()
-            run = p.add_run(content)
-            run.bold = True
-            run.font.size = Pt(11)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            _add_template_runs(p, content, size_pt=_JOBTITLE_PT)
+            for r in p.runs:
+                r.bold = True
             p.paragraph_format.space_before = Pt(6)
             p.paragraph_format.space_after = Pt(2)
         elif kind == "bullet":
-            p = doc.add_paragraph(style="List Bullet")
-            p.paragraph_format.space_after = Pt(2)
-            _add_runs_with_inline_md(p, content)
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            pf = p.paragraph_format
+            pf.left_indent = Inches(0.25)
+            pf.first_line_indent = Inches(-0.18)
+            pf.space_after = Pt(3)
+            bullet_run = p.add_run("•  ")
+            _apply_run_font(bullet_run, size_pt=_BODY_PT)
+            _add_template_runs(p, content, size_pt=_BODY_PT)
         elif kind == "hr":
             p = doc.add_paragraph()
             pPr = p._p.get_or_add_pPr()
@@ -250,9 +315,12 @@ def markdown_to_docx_bytes(md_text: str) -> bytes:
             continue
         else:
             p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.space_after = Pt(4)
-            _add_runs_with_inline_md(p, content)
+            # Contact info (before the first section heading) is centered;
+            # body paragraphs are justified like the template.
+            p.alignment = (WD_ALIGN_PARAGRAPH.CENTER if not seen_first_h2
+                           else WD_ALIGN_PARAGRAPH.JUSTIFY)
+            p.paragraph_format.space_after = Pt(3)
+            _add_template_runs(p, content, size_pt=_BODY_PT)
 
     _scrub_docx_metadata(doc)
     buf = io.BytesIO()
@@ -427,8 +495,15 @@ Job Description:
 Guidelines:
 1. Tailor the professional summary, skills, and work experience sections to highlight the matching skills and achievements required by the Job Description.
 2. Maintain absolute truthfulness. Do not fabricate roles, companies, dates, or degrees.
-3. Structure the resume cleanly using Markdown. Ensure sections like Contact Information, Professional Summary, Core Competencies/Skills, Professional Experience (with Bullet Points containing Action Verb + Context + Result/Impact), and Education are present.
-4. Keep the style modern, concise, and impact-driven.
+3. Structure the resume in clean Markdown using EXACTLY this layout so it renders correctly:
+   - First line: `# Full Name (Target Role)` — put the target job title in parentheses.
+   - Next line: a single contact line (email | phone | location | LinkedIn) if available in the resume.
+   - `## Professional Summary` followed by a justified paragraph.
+   - `## Education` followed by bullet point(s).
+   - `## Work Experience`. For each role use `### Job Title | Company, Location | Start - End` then bullet points (Action Verb + Context + Result/Impact).
+   - `## Technical Skills` as bullets grouped by category, e.g. `- **Programming & Databases:** SQL, Python, PostgreSQL`.
+4. Bold the key skills, tools, and keywords from the Job Description inline using **double asterisks** within the summary and bullet points (mirroring how recruiters emphasize matching keywords).
+5. Keep the style modern, concise, and impact-driven.
 
 Return ONLY the tailored resume in clean Markdown format. Do not include any introductory or concluding comments.
 """
