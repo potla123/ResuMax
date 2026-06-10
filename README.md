@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ResuMax — AI Resume & Cover Letter Optimizer
 
 A multi-model agentic pipeline that takes your existing resume and a target job description, then produces an **ATS-optimized resume** and a **tailored cover letter** in clean, downloadable formats (Word, PDF, plain text, Markdown). The output is deliberately scrubbed of AI/tool fingerprints — anonymous metadata, no smart-quote tells, no telltale preambles — so it reads as human-authored.
@@ -320,3 +321,6 @@ MIT. Use it, fork it, ship your own version.
 ## Acknowledgements
 
 Built as part of the CodeBasics Bootcamp project series. Inspired by countless evenings spent manually tailoring resumes one bullet at a time.
+=======
+# ResuMax
+>>>>>>> b41f6a8f594ab3b234c60ad65138ea7a1a106be0
